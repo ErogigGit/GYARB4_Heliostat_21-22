@@ -28,12 +28,9 @@ float Lon = 13.38 * DEG_TO_RAD,
       azimuth;
 int sun_azimuth;
 int sun_elevation;
-//String time_str, current_hour, current_minute, current_day, current_month, current_year;
 
-//static RTC_DATA_ATTR struct timeval sleep_enter_time;
 RTC_DATA_ATTR long time2sleep;
 RTC_DATA_ATTR int WifiFailures;
-//int solarChargerClicks;
 int retries;
 int timeHour;
 int timeMin;
@@ -53,28 +50,7 @@ void setup()
 
   Serial.begin(115200);
   timeHour = 123;
-  /*
-  pinMode(wakeUpIntPin, INPUT_PULLUP); 
-  esp_sleep_enable_ext0_wakeup(wakeUpIntPin,0);
-  struct timeval now;
-  
-  gettimeofday(&now, NULL);
-  long sleep_time_ms = (now.tv_sec - sleep_enter_time.tv_sec) * 1000 + (now.tv_usec - sleep_enter_time.tv_usec) / 1000;
 
-  esp_sleep_wakeup_cause_t wakeup_reason;
-  wakeup_reason = esp_sleep_get_wakeup_cause();
-  
-  switch(wakeup_reason) {
-    case soughtWakeupReason: 
-      solarChargerClicks += 1;
-      time2sleep = time2sleep - sleep_time_ms;
-      gettimeofday(&sleep_enter_time, NULL);
-      esp_deep_sleep_start();
-      break;
-    case ESP_SLEEP_WAKEUP_TIMER : Serial.println("Wakeup caused by timer"); break;
-    default: Serial.printf("Wakeup reason unknown: %d\n",wakeup_reason); break;
-  }
-  */
   io.connect();
   retries = 0;
   while(io.status() < AIO_CONNECTED) {
@@ -103,25 +79,7 @@ void setup()
   timeH->onMessage(handleISO);
   
   io.run();
-  /*
-  if(current_hour.toInt()>20){//// Dont upload values if its too late
-    time2sleep = 60 * 30 * 1000000; //reset sleep time
-    esp_sleep_enable_timer_wakeup(time2sleep);//30 minutes between send readings wake ups
-    gettimeofday(&sleep_enter_time, NULL);//store on RTC at what time you enter sleep
-    Serial.println("Going to sleep...");
-    esp_deep_sleep_start();
-  }
-  if(current_hour.toInt()<6){//// Dont upload values if its too early
-    time2sleep = 60 * 30 * 1000000; //reset sleep time
-    esp_sleep_enable_timer_wakeup(time2sleep);//30 minutes between send readings wake ups
-    gettimeofday(&sleep_enter_time, NULL);//store on RTC at what time you enter sleep
-    Serial.println("Going to sleep...");
-    esp_deep_sleep_start();
-  }
-  else{
-    time2sleep = wakeup_time_usec; //15 minutes sleep time
-  }
-  */
+
   // INA219 code start
   if (! ina219.begin()) {
     Serial.println("Failed to find INA219 chip");
@@ -172,12 +130,10 @@ void setup()
       group->set("Current_static", INA219_current_avg);
       group->set("Voltage_static", fGaugeVoltage);
       group->set("Percentage_static", fGaugePercentage);
-      //group->set("solarCharger", solarChargerClicks);
       group->save();
       Serial.println("sent data");
       
       esp_sleep_enable_timer_wakeup(time2sleep*uS_TO_S_FACTOR);
-      //gettimeofday(&sleep_enter_time, NULL);
       Serial.println("Going to sleep...");
       esp_deep_sleep_start();
       break;
@@ -193,12 +149,6 @@ void setup()
   pwm.begin();
   pwm.setOscillatorFrequency(27000000);
   pwm.setPWMFreq(SERVO_FREQ);  // Analog servos run at ~50 Hz updates
-/*
-  StartTime();
-  UpdateLocalTime();
-  Serial.print("Update time:");
-  Serial.println(Update_DateTime());
-*/
   Calculate_Sun_Position(timeHour, timeMin, 0, timeDay, timeMonth, timeYear); // parameters are HH:MM:SS DD:MM:YY start from midnight and work out all 24 hour positions.
 
   azipulse=map(sun_azimuth, 90, 270, 180, 0);//Map the sun position to degrees
@@ -222,12 +172,10 @@ void setup()
   group->set("Current_static", INA219_current_avg);
   group->set("Voltage_static", fGaugeVoltage);
   group->set("Percentage_static", fGaugePercentage);
-  //group->set("solarCharger", solarChargerClicks);
   group->save();
   Serial.println("sent data");
   
   esp_sleep_enable_timer_wakeup(time2sleep*uS_TO_S_FACTOR);
-  //gettimeofday(&sleep_enter_time, NULL);
   Serial.println("Going to sleep...");
   esp_deep_sleep_start();
 }
@@ -270,46 +218,7 @@ long JulianDate(int year, int month, int day) {
   JD = (long)(365.25 * (year + 4716)) + (int)(30.6001 * (month + 1)) + day + B - 1524;
   return JD;
 }
-/*
-void StartTime() {
-  configTime(0, 0, "0.uk.pool.ntp.org", "time.nist.gov");
-  setenv("TZ", "CET-1CEST-2,M3.5.0/02:00:00,M10.5.0/03:00:00", 1); // Change for your location
-  UpdateLocalTime();
-}
 
-void UpdateLocalTime() {
-  struct tm timeinfo;
-  while (!getLocalTime(&timeinfo)) {
-    Serial.println("Failed to obtain time");
-  }
-  //See http://www.cplusplus.com/reference/ctime/strftime/
-  Serial.println(&timeinfo, "%a %b %d %Y   %H:%M:%S"); // Displays: Saturday, June 24 2017 14:05:49
-  char output[50];
-  strftime(output, 50, "%a %d-%b-%y  (%H:%M:%S)", &timeinfo);
-  time_str = output;
-}
-
-String Update_DateTime() {
-  struct tm timeinfo;
-  while (!getLocalTime(&timeinfo)) {
-    Serial.println("Failed to obtain time - trying again");
-  }
-  //See http://www.cplusplus.com/reference/ctime/strftime/
-  char output[50];
-  strftime(output, 50, "%H", &timeinfo);
-  current_hour   = output;
-  strftime(output, 50, "%M", &timeinfo);
-  current_minute = output;
-  strftime(output, 50, "%d", &timeinfo);
-  current_day    = output;
-  strftime(output, 50, "%m", &timeinfo);
-  current_month  = output;
-  strftime(output, 50, "%Y", &timeinfo);
-  current_year   = output;
-  Serial.println(time_str);
-  return time_str; // returns date-time formatted like this "11/12/17 22:01:00"
-}
-*/
 void handleISO(char *data, uint16_t len) {
   struct tm tm = {0};
   // Convert to tm struct
